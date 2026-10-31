@@ -126,3 +126,7 @@ npm run dist
 - `CA_PAGE` — сторінка, яка відкривається першою;
 - `CA_TEST` — режим автоматичних перевірок;
 - `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` — підключення DevTools/CDP для наскрізних перевірок.
+
+## Ліцензія
+
+[MIT](LICENSE).

@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Аналіз і систематизація судових рішень з ЄДРСР за допомогою ШІ",
   "author": "Lexcovery",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev:ui": "vite",

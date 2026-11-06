@@ -13,7 +13,8 @@
     "test": "node scripts/run-tests.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "start": "tauri dev",
-    "dist": "tauri build --no-bundle && node scripts/collect-release.mjs"
+    "dist": "tauri build --no-bundle && node scripts/collect-release.mjs",
+    "dist:mac": "CI=true tauri build && node scripts/collect-release.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

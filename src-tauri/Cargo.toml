@@ -26,6 +26,10 @@ base64 = "0.22"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+ring = "0.17"
+
 [dev-dependencies]
 zip = { version = "2", default-features = false, features = ["deflate"] }
 

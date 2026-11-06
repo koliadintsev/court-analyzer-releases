@@ -2,6 +2,8 @@
 //! завантаження та шифрування ключів. Уся бізнес-логіка — у TypeScript.
 
 mod download;
+#[cfg(target_os = "macos")]
+mod keychain;
 mod zipops;
 
 use std::collections::HashMap;
@@ -32,10 +34,12 @@ impl AppState {
 }
 
 /// Портативна робоча папка: поруч з exe, якщо туди можна писати; інакше — профіль користувача.
+/// На macOS exe лежить усередині .app-пакета, тому дані завжди в ~/Library/Application Support.
 fn resolve_data_dir(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(dir) = std::env::var("COURT_ANALYZER_DATA") {
         return PathBuf::from(dir);
     }
+    #[cfg(not(target_os = "macos"))]
     if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("CourtAnalyzer-data"))) {
         let probe = dir.join(".write-test");
         if fs::create_dir_all(&dir).is_ok() && fs::write(&probe, b"ok").is_ok() {
@@ -68,7 +72,7 @@ fn app_info(app: tauri::AppHandle, state: State<AppState>) -> AppInfo {
     AppInfo {
         data_dir: state.data_dir.to_string_lossy().into_owned(),
         version: app.package_info().version.to_string(),
-        encryption: cfg!(windows),
+        encryption: cfg!(any(windows, target_os = "macos")),
         test_mode: std::env::var("CA_TEST").is_ok(),
     }
 }
@@ -241,10 +245,11 @@ fn cancel_op(state: State<AppState>, op: String) {
 }
 
 // ---------------------------------------------------------------------------
-// Шифрування API-ключів (Windows DPAPI: розшифрувати може лише той самий користувач Windows)
+// Шифрування API-ключів: Windows — DPAPI; macOS — AES-256-GCM з ключем у в'язці ключів (Keychain).
+// В обох випадках розшифрувати може лише той самий користувач на тому самому комп'ютері.
 
 #[cfg(windows)]
-fn dpapi(data: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
+fn os_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Cryptography::{CryptProtectData, CryptUnprotectData, CRYPT_INTEGER_BLOB};
     let input = CRYPT_INTEGER_BLOB { cbData: data.len() as u32, pbData: data.as_ptr() as *mut u8 };
@@ -264,20 +269,29 @@ fn dpapi(data: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-#[cfg(not(windows))]
-fn dpapi(data: &[u8], _encrypt: bool) -> Result<Vec<u8>, String> {
+#[cfg(target_os = "macos")]
+fn os_crypt(data: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
+    if encrypt {
+        keychain::protect(data)
+    } else {
+        keychain::unprotect(data)
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn os_crypt(data: &[u8], _encrypt: bool) -> Result<Vec<u8>, String> {
     Ok(data.to_vec())
 }
 
 #[tauri::command]
 fn protect(text: String) -> Result<String, String> {
-    Ok(base64::engine::general_purpose::STANDARD.encode(dpapi(text.as_bytes(), true)?))
+    Ok(base64::engine::general_purpose::STANDARD.encode(os_crypt(text.as_bytes(), true)?))
 }
 
 #[tauri::command]
 fn unprotect(value: String) -> Result<String, String> {
     let raw = base64::engine::general_purpose::STANDARD.decode(value).map_err(err)?;
-    String::from_utf8(dpapi(&raw, false)?).map_err(err)
+    String::from_utf8(os_crypt(&raw, false)?).map_err(err)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 // Реалізація платформи через Rust-шар Tauri (src-tauri) та його плагіни.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { documentDir } from '@tauri-apps/api/path';
+import { documentDir, sep } from '@tauri-apps/api/path';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
@@ -46,6 +46,7 @@ function b64utf8(s: string): string {
 
 export async function createTauriPlatform(): Promise<{ platform: Platform; shell: Shell; testMode: boolean }> {
   const info = await invoke<{ dataDir: string; version: string; encryption: boolean; testMode: boolean }>('app_info');
+  const pathSep = sep();
   const call = async <T,>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
     try {
       return await invoke<T>(cmd, args);
@@ -64,7 +65,8 @@ export async function createTauriPlatform(): Promise<{ platform: Platform; shell
     dataDir: info.dataDir,
     version: info.version,
     encryption: info.encryption,
-    join: (...parts) => parts.filter(Boolean).join('\\').replace(/[\\/]+/g, '\\'),
+    // Windows: «\» (і «/» теж зводимо до «\»); macOS: «/».
+    join: (...parts) => parts.filter(Boolean).join(pathSep).replace(pathSep === '\\' ? /[\\/]+/g : /\/+/g, pathSep),
     readText: async (path) => (await call<string | null>('read_text', { path })) ?? undefined,
     writeText: (path, text) => call('write_text', { path, text }),
     readBytes: async (path) => new Uint8Array(await call<ArrayBuffer>('read_bytes', { path })),
